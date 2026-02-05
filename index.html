@@ -21,7 +21,7 @@ html,body{height:100%;margin:0;font-family:Arial,sans-serif}
 .file-label{display:inline-block;padding:6px 10px;background:#2196F3;color:#fff;border-radius:4px;cursor:pointer;font-size:11px;margin-top:4px}
 .file-label:hover{background:#0b7dda}
 input[type=file]{display:none}
-.text-input{width:100%;padding:6px;border:1px solid#ccc;border-radius:4px;font-size:11px;box-sizing:border-box}
+.text-input{width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;box-sizing:border-box}
 .footer{position:fixed;bottom:10px;left:10px;background:rgba(255,255,255,0.9);padding:8px 12px;border-radius:5px;font-size:12px;z-index:9999}
 .measure-label{background:#ff6b6b;color:#fff;padding:3px 6px;border-radius:3px;font-size:10px;font-weight:bold}
 .csv-icon{width:20px;height:20px;background:#2196F3;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)}
@@ -67,6 +67,12 @@ const AppCtrl={
   geoLayers:[],
   csvPins:[],
   pbfRef:null,
+  
+  escapeHtml(txt){
+    const div=document.createElement('div');
+    div.textContent=txt;
+    return div.innerHTML;
+  },
   
   init(){
     this.theMap=L.map('view').setView([this.SAKAIDE_LAT,this.SAKAIDE_LNG],13);
@@ -152,7 +158,7 @@ const AppCtrl={
           pointToLayer:(feat,ll)=>L.circleMarker(ll,{radius:7,fillColor:'#9C27B0',color:'#fff',weight:1,fillOpacity:0.8}),
           onEachFeature:(feat,layer)=>{
             if(feat.properties){
-              const info=Object.entries(feat.properties).map(([k,v])=>`<b>${k}:</b> ${v}`).join('<br>');
+              const info=Object.entries(feat.properties).map(([k,v])=>`<b>${this.escapeHtml(String(k))}:</b> ${this.escapeHtml(String(v))}`).join('<br>');
               layer.bindPopup(info);
             }
           }
@@ -193,7 +199,7 @@ const AppCtrl={
             const pin=L.marker([lat,lng],{
               icon:L.divIcon({className:'',html:'<div class="csv-icon"></div>'})
             }).addTo(this.theMap);
-            const details=hdr.map((h,idx)=>`<b>${h}:</b> ${vals[idx]||'?'}`).join('<br>');
+            const details=hdr.map((h,idx)=>`<b>${this.escapeHtml(h)}:</b> ${this.escapeHtml(vals[idx]||'?')}`).join('<br>');
             pin.bindPopup(details);
             this.csvPins.push(pin);
             cnt++;
@@ -224,7 +230,7 @@ const AppCtrl={
       this.pbfRef.on('click',e=>{
         if(e.layer&&e.layer.properties){
           const props=e.layer.properties;
-          const txt=Object.entries(props).slice(0,8).map(([k,v])=>`<b>${k}:</b> ${v}`).join('<br>');
+          const txt=Object.entries(props).slice(0,8).map(([k,v])=>`<b>${this.escapeHtml(String(k))}:</b> ${this.escapeHtml(String(v))}`).join('<br>');
           L.popup().setLatLng(e.latlng).setContent(txt).openOn(this.theMap);
         }
       });
