@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>坂出市 Interactive Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+<style>
+html,body{height:100%;margin:0;font-family:Arial,sans-serif}
+#view{position:absolute;width:100%;height:100%}
+.sidebar{position:fixed;right:15px;top:15px;background:#fff;padding:15px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);width:280px;z-index:9999}
+.sidebar h3{margin:0 0 10px;font-size:16px;color:#333;border-bottom:1px solid #ddd;padding-bottom:5px}
+.group{margin-bottom:12px}
+.group label{display:block;font-size:13px;margin-bottom:5px;color:#555}
+.btn{display:inline-block;padding:7px 12px;margin:3px 2px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+.btn:hover{background:#45a049}
+.btn.active{background:#ff6b6b}
+.file-label{display:inline-block;padding:6px 10px;background:#2196F3;color:#fff;border-radius:4px;cursor:pointer;font-size:11px;margin-top:4px}
+.file-label:hover{background:#0b7dda}
+input[type=file]{display:none}
+.text-input{width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;box-sizing:border-box}
+.footer{position:fixed;bottom:10px;left:10px;background:rgba(255,255,255,0.9);padding:8px 12px;border-radius:5px;font-size:12px;z-index:9999}
+.measure-label{background:#ff6b6b;color:#fff;padding:3px 6px;border-radius:3px;font-size:10px;font-weight:bold}
+.csv-icon{width:20px;height:20px;background:#2196F3;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)}
+.city-label{background:#4CAF50;color:#fff;padding:6px 10px;border-radius:5px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div class="sidebar">
+<h3>坂出市 Map Controls</h3>
+<div class="group">
+<label>Background Maps:</label>
+<button class="btn" onclick="AppCtrl.switchTiles('street')">Street</button>
+<button class="btn" onclick="AppCtrl.switchTiles('imagery')">Satellite</button>
+<button class="btn" onclick="AppCtrl.switchTiles('topo')">Topography</button>
+</div>
+<div class="group">
+<label>Measure Tool:</label>
+<button class="btn" id="rulerBtn" onclick="AppCtrl.toggleRuler()">Start Ruler</button>
+<button class="btn" onclick="AppCtrl.resetRuler()">Reset</button>
+</div>
+<div class="group">
+<label>Import Files:</label>
+<label class="file-label">GeoJSON<input type="file" accept=".geojson,.json" onchange="AppCtrl.importGeoJson(event)"></label>
+<label class="file-label">CSV Data<input type="file" accept=".csv" onchange="AppCtrl.importCsv(event)"></label>
+</div>
+<div class="group">
+<label>Vector Tiles (PBF):</label>
+<input type="text" class="text-input" id="pbfUrl" placeholder="https://example.com/{z}/{x}/{y}.pbf">
+<button class="btn" onclick="AppCtrl.addPbfLayer()" style="width:100%;margin-top:5px">Load MVT</button>
+</div>
+</div>
+<div class="footer" id="msg">📍 Sakaide City, Kagawa Prefecture</div>
+<script>
+const AppCtrl={
+  theMap:null,
+  SAKAIDE_LAT:34.3148,
+  SAKAIDE_LNG:133.8547,
+  currentBase:null,
+  rulerMode:false,
+  rulerPts:[],
+  rulerElems:[],
+  geoLayers:[],
+  csvPins:[],
+  pbfRef:null,
+  
+  escapeHtml(txt){
+    const div=document.createElement('div');
+    div.textContent=txt;
+    return div.innerHTML;
+  },
+  
+  init(){
+    this.theMap=L.map('view').setView([this.SAKAIDE_LAT,this.SAKAIDE_LNG],13);
+    this.tiles={
+      street:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM'}),
+      imagery:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri'}),
+      topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'OpenTopoMap'})
+    };
+    this.currentBase='street';
+    this.tiles.street.addTo(this.theMap);
+    
+    const cityPin=L.divIcon({className:'',html:'<div class="city-label">坂出市</div>'});
+    L.marker([this.SAKAIDE_LAT,this.SAKAIDE_LNG],{icon:cityPin}).addTo(this.theMap).bindPopup('<strong>坂出市</strong><br>Sakaide, Kagawa');
+    
+    this.theMap.on('click',e=>{
+      if(!this.rulerMode)return;
+      this.rulerPts.push(e.latlng);
+      const dot=L.circleMarker(e.latlng,{radius:5,fillColor:'#ff6b6b',color:'#fff',weight:2,fillOpacity:1}).addTo(this.theMap);
+      this.rulerElems.push(dot);
+      
+      if(this.rulerPts.length>=2){
+        const p1=this.rulerPts[this.rulerPts.length-2];
+        const p2=this.rulerPts[this.rulerPts.length-1];
+        const pt1=turf.point([p1.lng,p1.lat]);
+        const pt2=turf.point([p2.lng,p2.lat]);
+        const km=turf.distance(pt1,pt2,{units:'kilometers'});
+        const m=km*1000;
+        
+        const connector=L.polyline([p1,p2],{color:'#ff6b6b',weight:2}).addTo(this.theMap);
+        this.rulerElems.push(connector);
+        
+        const midLat=(p1.lat+p2.lat)/2;
+        const midLng=(p1.lng+p2.lng)/2;
+        const tag=L.marker([midLat,midLng],{
+          icon:L.divIcon({className:'',html:`<div class="measure-label">${m<1000?m.toFixed(0)+'m':km.toFixed(2)+'km'}</div>`})
+        }).addTo(this.theMap);
+        this.rulerElems.push(tag);
+        
+        this.notify(`Distance: ${m<1000?m.toFixed(0)+'m':km.toFixed(2)+'km'}`);
+      }
+    });
+  },
+  
+  switchTiles(key){
+    if(this.currentBase)this.theMap.removeLayer(this.tiles[this.currentBase]);
+    this.tiles[key].addTo(this.theMap);
+    this.currentBase=key;
+    this.notify('Base layer: '+key);
+  },
+  
+  toggleRuler(){
+    this.rulerMode=!this.rulerMode;
+    const btn=document.getElementById('rulerBtn');
+    if(this.rulerMode){
+      btn.classList.add('active');
+      btn.textContent='Measuring...';
+      this.theMap.getContainer().style.cursor='crosshair';
+      this.notify('Click map to measure');
+    }else{
+      btn.classList.remove('active');
+      btn.textContent='Start Ruler';
+      this.theMap.getContainer().style.cursor='';
+      this.notify('Ruler off');
+    }
+  },
+  
+  resetRuler(){
+    this.rulerPts=[];
+    this.rulerElems.forEach(el=>this.theMap.removeLayer(el));
+    this.rulerElems=[];
+    this.notify('Measurements cleared');
+  },
+  
+  importGeoJson(evt){
+    const f=evt.target.files[0];
+    if(!f)return;
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const data=JSON.parse(e.target.result);
+        const lyr=L.geoJSON(data,{
+          style:{color:'#9C27B0',weight:2,fillOpacity:0.3},
+          pointToLayer:(feat,ll)=>L.circleMarker(ll,{radius:7,fillColor:'#9C27B0',color:'#fff',weight:1,fillOpacity:0.8}),
+          onEachFeature:(feat,layer)=>{
+            if(feat.properties){
+              const info=Object.entries(feat.properties).map(([k,v])=>`<b>${this.escapeHtml(String(k))}:</b> ${this.escapeHtml(String(v))}`).join('<br>');
+              layer.bindPopup(info);
+            }
+          }
+        }).addTo(this.theMap);
+        this.geoLayers.push(lyr);
+        const bb=lyr.getBounds();
+        if(bb.isValid())this.theMap.fitBounds(bb,{padding:[40,40]});
+        this.notify('GeoJSON loaded: '+f.name);
+      }catch(err){
+        this.notify('Error: '+err.message);
+      }
+    };
+    r.readAsText(f);
+    evt.target.value='';
+  },
+  
+  importCsv(evt){
+    const f=evt.target.files[0];
+    if(!f)return;
+    const r=new FileReader();
+    r.onload=e=>{
+      try{
+        const lines=e.target.result.split('\n').filter(l=>l.trim());
+        if(lines.length<2){this.notify('CSV empty');return;}
+        
+        const hdr=lines[0].split(',').map(h=>h.trim().toLowerCase());
+        const latCol=hdr.findIndex(h=>h.includes('lat')||h==='y');
+        const lngCol=hdr.findIndex(h=>h.includes('lon')||h.includes('lng')||h==='x');
+        
+        if(latCol<0||lngCol<0){this.notify('No lat/lon columns');return;}
+        
+        let cnt=0;
+        for(let i=1;i<lines.length;i++){
+          const vals=lines[i].split(',');
+          const lat=parseFloat(vals[latCol]);
+          const lng=parseFloat(vals[lngCol]);
+          if(!isNaN(lat)&&!isNaN(lng)){
+            const pin=L.marker([lat,lng],{
+              icon:L.divIcon({className:'',html:'<div class="csv-icon"></div>'})
+            }).addTo(this.theMap);
+            const details=hdr.map((h,idx)=>`<b>${this.escapeHtml(h)}:</b> ${this.escapeHtml(vals[idx]||'?')}`).join('<br>');
+            pin.bindPopup(details);
+            this.csvPins.push(pin);
+            cnt++;
+          }
+        }
+        this.notify(`CSV: ${cnt} points from ${f.name}`);
+      }catch(err){
+        this.notify('CSV error: '+err.message);
+      }
+    };
+    r.readAsText(f);
+    evt.target.value='';
+  },
+  
+  addPbfLayer(){
+    const url=document.getElementById('pbfUrl').value.trim();
+    if(!url){this.notify('Enter PBF URL');return;}
+    
+    if(this.pbfRef)this.theMap.removeLayer(this.pbfRef);
+    
+    try{
+      this.pbfRef=L.vectorGrid.protobuf(url,{
+        rendererFactory:L.canvas.tile,
+        vectorTileLayerStyles:{},
+        interactive:true
+      }).addTo(this.theMap);
+      
+      this.pbfRef.on('click',e=>{
+        if(e.layer&&e.layer.properties){
+          const props=e.layer.properties;
+          const txt=Object.entries(props).slice(0,8).map(([k,v])=>`<b>${this.escapeHtml(String(k))}:</b> ${this.escapeHtml(String(v))}`).join('<br>');
+          L.popup().setLatLng(e.latlng).setContent(txt).openOn(this.theMap);
+        }
+      });
+      
+      this.notify('Vector tiles loaded');
+    }catch(err){
+      this.notify('PBF error: '+err.message);
+    }
+  },
+  
+  notify(txt){
+    const el=document.getElementById('msg');
+    el.textContent=txt;
+    setTimeout(()=>{el.textContent='📍 Sakaide City, Kagawa Prefecture';},4000);
+  }
+};
+
+AppCtrl.init();
+</script>
+</body>
+</html>
