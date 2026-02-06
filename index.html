@@ -11,50 +11,78 @@
 <style>
 html,body{height:100%;margin:0;font-family:Arial,sans-serif}
 #view{position:absolute;width:100%;height:100%}
-.sidebar{position:fixed;right:15px;top:15px;background:#fff;padding:15px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);width:280px;z-index:9999}
-.sidebar h3{margin:0 0 10px;font-size:16px;color:#333;border-bottom:1px solid #ddd;padding-bottom:5px}
-.group{margin-bottom:12px}
-.group label{display:block;font-size:13px;margin-bottom:5px;color:#555}
-.btn{display:inline-block;padding:7px 12px;margin:3px 2px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px}
-.btn:hover{background:#45a049}
-.btn.active{background:#ff6b6b}
-.file-label{display:inline-block;padding:6px 10px;background:#2196F3;color:#fff;border-radius:4px;cursor:pointer;font-size:11px;margin-top:4px}
+.tool-panel{position:fixed;right:10px;top:10px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.tool-btn{width:44px;height:44px;background:rgba(255,255,255,0.92);border:1px solid rgba(0,0,0,0.1);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 1px 4px rgba(0,0,0,0.15);transition:all 0.2s}
+.tool-btn:hover{background:rgba(255,255,255,1);box-shadow:0 2px 8px rgba(0,0,0,0.25)}
+.tool-btn.active{background:rgba(255,100,100,0.9);color:#fff}
+.panel-content{position:fixed;right:64px;top:10px;background:rgba(255,255,255,0.95);padding:12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.2);max-width:280px;z-index:9998;display:none}
+.panel-content.show{display:block}
+.panel-title{margin:0 0 10px;font-size:14px;font-weight:bold;color:#333;border-bottom:1px solid #ddd;padding-bottom:6px}
+.panel-group{margin-bottom:10px}
+.panel-group label{display:block;font-size:12px;margin-bottom:4px;color:#555}
+.small-btn{display:inline-block;padding:5px 10px;margin:2px;background:#4CAF50;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:11px}
+.small-btn:hover{background:#45a049}
+.small-btn.active{background:#ff6b6b}
+.file-label{display:inline-block;padding:5px 8px;background:#2196F3;color:#fff;border-radius:3px;cursor:pointer;font-size:10px;margin-top:3px}
 .file-label:hover{background:#0b7dda}
 input[type=file]{display:none}
-.text-input{width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;box-sizing:border-box}
-.footer{position:fixed;bottom:10px;left:10px;background:rgba(255,255,255,0.9);padding:8px 12px;border-radius:5px;font-size:12px;z-index:9999}
+.text-input{width:100%;padding:5px;border:1px solid #ccc;border-radius:3px;font-size:11px;box-sizing:border-box}
+.info-panel{position:fixed;bottom:10px;left:10px;background:rgba(255,255,255,0.92);padding:8px 12px;border-radius:4px;font-size:11px;z-index:9999;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
+.coords{font-family:monospace;font-size:10px;color:#666}
+.toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(40,40,40,0.9);color:#fff;padding:10px 20px;border-radius:4px;font-size:12px;z-index:10000;opacity:0;transition:opacity 0.3s;pointer-events:none}
+.toast.show{opacity:1}
 .measure-label{background:#ff6b6b;color:#fff;padding:3px 6px;border-radius:3px;font-size:10px;font-weight:bold}
 .csv-icon{width:20px;height:20px;background:#2196F3;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)}
 .city-label{background:#4CAF50;color:#fff;padding:6px 10px;border-radius:5px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+@media (max-width:768px){
+  .panel-content{right:10px;top:64px;max-width:calc(100vw - 20px)}
+  .tool-panel{flex-direction:row;flex-wrap:wrap;width:auto;max-width:calc(100vw - 20px)}
+}
 </style>
 </head>
 <body>
 <div id="view"></div>
-<div class="sidebar">
-<h3>坂出市 Map Controls</h3>
-<div class="group">
-<label>Background Maps:</label>
-<button class="btn" onclick="AppCtrl.switchTiles('street')">Street</button>
-<button class="btn" onclick="AppCtrl.switchTiles('imagery')">Satellite</button>
-<button class="btn" onclick="AppCtrl.switchTiles('topo')">Topography</button>
+<div class="tool-panel">
+<button class="tool-btn" onclick="AppCtrl.togglePanel('base')" title="Base Maps">🗺️</button>
+<button class="tool-btn" id="rulerBtn" onclick="AppCtrl.toggleRuler()" title="Measure Distance">📏</button>
+<button class="tool-btn" onclick="AppCtrl.togglePanel('data')" title="Import Data">📁</button>
+<button class="tool-btn" onclick="AppCtrl.togglePanel('vector')" title="Vector Tiles">🔲</button>
 </div>
-<div class="group">
-<label>Measure Tool:</label>
-<button class="btn" id="rulerBtn" onclick="AppCtrl.toggleRuler()">Start Ruler</button>
-<button class="btn" onclick="AppCtrl.resetRuler()">Reset</button>
+<div class="panel-content" id="basePanel">
+<div class="panel-title">Background Maps</div>
+<div class="panel-group">
+<button class="small-btn" onclick="AppCtrl.switchTiles('street')">Street</button>
+<button class="small-btn" onclick="AppCtrl.switchTiles('imagery')">Satellite</button>
+<button class="small-btn" onclick="AppCtrl.switchTiles('topo')">Topography</button>
 </div>
-<div class="group">
-<label>Import Files:</label>
-<label class="file-label">GeoJSON<input type="file" accept=".geojson,.json" onchange="AppCtrl.importGeoJson(event)"></label>
-<label class="file-label">CSV Data<input type="file" accept=".csv" onchange="AppCtrl.importCsv(event)"></label>
 </div>
-<div class="group">
-<label>Vector Tiles (PBF):</label>
+<div class="panel-content" id="dataPanel">
+<div class="panel-title">Import Data</div>
+<div class="panel-group">
+<label>GeoJSON File:</label>
+<label class="file-label">Choose File<input type="file" accept=".geojson,.json" onchange="AppCtrl.importGeoJson(event)"></label>
+</div>
+<div class="panel-group">
+<label>CSV Data:</label>
+<label class="file-label">Choose File<input type="file" accept=".csv" onchange="AppCtrl.importCsv(event)"></label>
+</div>
+<div class="panel-group">
+<button class="small-btn" onclick="AppCtrl.resetRuler()">Clear Measurements</button>
+</div>
+</div>
+<div class="panel-content" id="vectorPanel">
+<div class="panel-title">Vector Tiles (PBF)</div>
+<div class="panel-group">
+<label>Tile URL:</label>
 <input type="text" class="text-input" id="pbfUrl" placeholder="https://example.com/{z}/{x}/{y}.pbf">
-<button class="btn" onclick="AppCtrl.addPbfLayer()" style="width:100%;margin-top:5px">Load MVT</button>
+<button class="small-btn" onclick="AppCtrl.addPbfLayer()" style="width:100%;margin-top:5px">Load MVT</button>
 </div>
 </div>
-<div class="footer" id="msg">📍 Sakaide City, Kagawa Prefecture</div>
+<div class="info-panel">
+<div>📍 <span id="location">Sakaide City, Kagawa Prefecture</span></div>
+<div class="coords" id="coords">Lat: 34.3148 | Lon: 133.8547 | Scale: 1:250k</div>
+</div>
+<div class="toast" id="toast"></div>
 <script>
 const AppCtrl={
   theMap:null,
@@ -67,6 +95,7 @@ const AppCtrl={
   geoLayers:[],
   csvPins:[],
   pbfRef:null,
+  currentPanel:null,
   
   escapeHtml(txt){
     const div=document.createElement('div');
@@ -84,8 +113,19 @@ const AppCtrl={
     this.currentBase='street';
     this.tiles.street.addTo(this.theMap);
     
+    L.control.scale({position:'bottomright',imperial:false}).addTo(this.theMap);
+    
     const cityPin=L.divIcon({className:'',html:'<div class="city-label">坂出市</div>'});
     L.marker([this.SAKAIDE_LAT,this.SAKAIDE_LNG],{icon:cityPin}).addTo(this.theMap).bindPopup('<strong>坂出市</strong><br>Sakaide, Kagawa');
+    
+    this.theMap.on('mousemove',e=>{
+      this.updateCoords(e.latlng.lat,e.latlng.lng);
+    });
+    
+    this.theMap.on('zoomend moveend',()=>{
+      const center=this.theMap.getCenter();
+      this.updateCoords(center.lat,center.lng);
+    });
     
     this.theMap.on('click',e=>{
       if(!this.rulerMode)return;
@@ -116,6 +156,33 @@ const AppCtrl={
     });
   },
   
+  updateCoords(lat,lng){
+    const zoom=this.theMap.getZoom();
+    const scales=[500000000,250000000,150000000,70000000,35000000,15000000,10000000,4000000,2000000,1000000,500000,250000,150000,70000,35000,15000,8000,4000,2000,1000,500,250];
+    const scale=scales[zoom]||1000;
+    const scaleStr=scale>=1000?(scale/1000)+'k':scale;
+    document.getElementById('coords').textContent=`Lat: ${lat.toFixed(4)} | Lon: ${lng.toFixed(4)} | Scale: 1:${scaleStr}`;
+  },
+  
+  togglePanel(id){
+    const panels=['base','data','vector'];
+    const panelId=id+'Panel';
+    panels.forEach(p=>{
+      const el=document.getElementById(p+'Panel');
+      if(p===id){
+        if(el.classList.contains('show')){
+          el.classList.remove('show');
+          this.currentPanel=null;
+        }else{
+          el.classList.add('show');
+          this.currentPanel=id;
+        }
+      }else{
+        el.classList.remove('show');
+      }
+    });
+  },
+  
   switchTiles(key){
     if(this.currentBase)this.theMap.removeLayer(this.tiles[this.currentBase]);
     this.tiles[key].addTo(this.theMap);
@@ -128,14 +195,12 @@ const AppCtrl={
     const btn=document.getElementById('rulerBtn');
     if(this.rulerMode){
       btn.classList.add('active');
-      btn.textContent='Measuring...';
       this.theMap.getContainer().style.cursor='crosshair';
-      this.notify('Click map to measure');
+      this.notify('Click map to measure distance');
     }else{
       btn.classList.remove('active');
-      btn.textContent='Start Ruler';
       this.theMap.getContainer().style.cursor='';
-      this.notify('Ruler off');
+      this.notify('Ruler disabled');
     }
   },
   
@@ -242,9 +307,10 @@ const AppCtrl={
   },
   
   notify(txt){
-    const el=document.getElementById('msg');
+    const el=document.getElementById('toast');
     el.textContent=txt;
-    setTimeout(()=>{el.textContent='📍 Sakaide City, Kagawa Prefecture';},4000);
+    el.classList.add('show');
+    setTimeout(()=>{el.classList.remove('show');},3000);
   }
 };
 
