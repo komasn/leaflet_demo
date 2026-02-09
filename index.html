@@ -316,5 +316,24 @@ const AppCtrl={
 
 AppCtrl.init();
 </script>
+<div id="tosModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:99999;align-items:center;justify-content:center">
+  <div style="background:#fff;padding:30px;border-radius:8px;max-width:500px;margin:20px;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
+    <h2 style="margin-top:0">利用規約への同意</h2>
+    <p>本サイトをご利用いただくには、<a href="terms.html" target="_blank" style="color:#2196F3">利用規約</a>への同意が必要です。</p>
+    <p>サイトを利用することで、利用規約に同意したものとみなされます。</p>
+    <button onclick="acceptTos()" style="width:100%;padding:12px;background:#4CAF50;color:#fff;border:none;border-radius:4px;font-size:16px;cursor:pointer;font-weight:bold">同意して続行</button>
+  </div>
+</div>
+<script>
+function acceptTos(){
+  localStorage.setItem('site_tos_accepted_v1','true');
+  document.getElementById('tosModal').style.display='none';
+}
+(function(){
+  if(!localStorage.getItem('site_tos_accepted_v1')){
+    document.getElementById('tosModal').style.display='flex';
+  }
+})();
+</script>
 </body>
 </html>
